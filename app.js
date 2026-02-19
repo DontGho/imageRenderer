@@ -1,18 +1,13 @@
-// 3D Logo Studio — Full Edition
 (function(){
 'use strict';
 
-// ── STATE ─────────────────────────────────────────────
 const S = {
   preset: 'chrome',
 
-  // Geometry
   depth: 0.22, bevel: 0.005, bevelSegs: 16, curveSegs: 48, scale: 0.90,
 
-  // Trace
-  traceThreshold: 10, traceSimplify: 0.10,
+  traceThreshold: 10, traceSimplify: 0.70,
 
-  // Material
   matColor:              '#eeeeee',
   matRoughness:          1.0,
   matMetalness:          1.0,
@@ -22,28 +17,22 @@ const S = {
   matEmissive:           '#000000',
   matEmissiveInt:        0,
 
-  // Gradient — ON by default
   matGradient:   true,
   matGradColorA: '#004bff',
   matGradColorB: '#ff0000',
   matGradDir:    'vertical',
 
-  // Lighting
   keyIntensity:     10,   keyColor:  '#ec0088',
   ambientIntensity: 0,    rimIntensity: 0,
   envIntensity:     0.30, exposure:   0.80,
 
-  // Presentation
   speed: 0, floatAmt: 0.2, tiltX: 10, spinAxis: 'y',
 
-  // Background
   bgMode: 'studio', bgColor: '#0d0d0d',
   shadowOpacity: 0.15,
 
-  // Export
   exportRes: 1, gifFrames: 60, gifFPS: 30,
 
-  // Internal
   rotY: 0, rotX: 0, rotZ: 0, t: 0,
   isRecording: false, userImgEl: null,
 };
@@ -58,7 +47,6 @@ const PRESETS = {
   metallica: { matColor:'#555555', matRoughness:0.6,  matMetalness:1.0,  matClearcoat:0.2,  matClearcoatRoughness:0.4,  matEnv:2.0, matEmissive:'#0044ff', matEmissiveInt:0 },
 };
 
-// ── RENDERER ──────────────────────────────────────────
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true, preserveDrawingBuffer:true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -81,7 +69,6 @@ function resize(){
 new ResizeObserver(resize).observe(canvas);
 resize();
 
-// ── ENV MAP ───────────────────────────────────────────
 function makeEnvMap(){
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
@@ -108,7 +95,6 @@ function makeEnvMap(){
 }
 scene.environment = makeEnvMap();
 
-// ── LIGHTS ────────────────────────────────────────────
 const ambient   = new THREE.AmbientLight(0xffffff, S.ambientIntensity);
 scene.add(ambient);
 const mainLight = new THREE.DirectionalLight(0xffffff, S.keyIntensity);
@@ -132,7 +118,6 @@ function updateLights(){
 }
 function updateExposure(){ renderer.toneMappingExposure = S.exposure; }
 
-// ── GRADIENT SHADER INJECTION ─────────────────────────
 let gradUniforms = null;
 const GRAD_DIRS = ['vertical','horizontal','diagonal','radial'];
 
@@ -191,7 +176,6 @@ function updateGradPreview(){
     : `linear-gradient(${dirMap[S.matGradDir]||'to top'},${S.matGradColorA},${S.matGradColorB})`;
 }
 
-// ── MESH ──────────────────────────────────────────────
 let meshGroup = null, shadowMat = null;
 
 function disposeMesh(){
@@ -239,22 +223,16 @@ function updateMaterials(){
 
 function updateShadow(){ if(shadowMat) shadowMat.opacity = S.shadowOpacity; }
 
-// ── CREASE-ANGLE NORMAL SMOOTHING ─────────────────────
-// Correctly smooths curved surfaces while preserving hard edges (≥ creaseAngleDeg).
-// This eliminates the horizontal ridges on extruded sides without corrupting the
-// 90° corners between the front face and the extrusion walls.
+// Smooths curved surfaces while keeping hard edges sharp (e.g. front face vs side wall).
+// Faces within creaseAngleDeg of each other get averaged together, wider angles stay hard.
 function computeCreaseNormals(geo, creaseAngleDeg){
-  // 65° default: smooths logo wall curves & bevel rings without blurring the
-  // hard 90° front-face ↔ side-wall corner. Raise/lower to taste.
   const deg = (creaseAngleDeg !== undefined) ? creaseAngleDeg : 65;
   const cosCrease = Math.cos(deg * Math.PI / 180);
 
-  // Work on a non-indexed copy — every face has 3 dedicated, unshared vertices
   const g = geo.index ? geo.toNonIndexed() : geo.clone();
   const pos = g.attributes.position;
-  const N   = pos.count; // always a multiple of 3
+  const N   = pos.count;
 
-  // Pass 1 — flat face normal per vertex
   const fnx = new Float32Array(N);
   const fny = new Float32Array(N);
   const fnz = new Float32Array(N);
@@ -273,9 +251,7 @@ function computeCreaseNormals(geo, creaseAngleDeg){
     fnz[i]=fnz[i+1]=fnz[i+2]=fn.z;
   }
 
-  // Pass 2 — hash vertices by position so we can find co-located groups.
-  // Use 1e5 precision (5 decimal places) to avoid floating-point grouping misses
-  // that cause un-smoothed ridges between otherwise identical vertex positions.
+  // 1e5 precision avoids floating point gaps between co-located vertices
   const PREC = 1e5;
   const posMap = new Map();
   for(let i = 0; i < N; i++){
@@ -284,7 +260,6 @@ function computeCreaseNormals(geo, creaseAngleDeg){
     posMap.get(k).push(i);
   }
 
-  // Pass 3 — averaged smooth normal per vertex (only within crease angle)
   const snx = new Float32Array(N);
   const sny = new Float32Array(N);
   const snz = new Float32Array(N);
@@ -298,7 +273,6 @@ function computeCreaseNormals(geo, creaseAngleDeg){
     const group = posMap.get(keyOf(i));
     avg.set(0,0,0);
     for(const j of group){
-      // only average faces whose normal is within crease angle of this face
       const dot = mx*fnx[j] + my*fny[j] + mz*fnz[j];
       if(dot >= cosCrease){ avg.x+=fnx[j]; avg.y+=fny[j]; avg.z+=fnz[j]; }
     }
@@ -306,7 +280,6 @@ function computeCreaseNormals(geo, creaseAngleDeg){
     snx[i]=avg.x; sny[i]=avg.y; snz[i]=avg.z;
   }
 
-  // Apply
   const normals = new Float32Array(N * 3);
   for(let i = 0; i < N; i++){
     normals[i*3]=snx[i]; normals[i*3+1]=sny[i]; normals[i*3+2]=snz[i];
@@ -315,7 +288,6 @@ function computeCreaseNormals(geo, creaseAngleDeg){
   return g;
 }
 
-// ── DEBOUNCE for expensive rebuilds ───────────────────
 let _buildTimer = null;
 function debouncedBuild(){
   clearTimeout(_buildTimer);
@@ -356,7 +328,6 @@ async function buildMesh(){
     addFallback();
   }
 
-  // Shadow plane
   shadowMat = new THREE.ShadowMaterial({ opacity: S.shadowOpacity, transparent:true });
   const plane = new THREE.Mesh(new THREE.PlaneGeometry(20,20), shadowMat);
   plane.rotation.x = -Math.PI/2;
@@ -379,7 +350,6 @@ function addFallback(){
   meshGroup.add(mesh);
 }
 
-// ── BACKGROUND ────────────────────────────────────────
 const bgScene = new THREE.Scene();
 const bgCam   = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
 let bgMesh = null;
@@ -411,7 +381,6 @@ function buildBg(){
   bgScene.add(bgMesh);
 }
 
-// ── INTERACTION ───────────────────────────────────────
 let isDragging=false, lmx=0, lmy=0;
 canvas.addEventListener('mousedown', e=>{ isDragging=true; lmx=e.clientX; lmy=e.clientY; });
 window.addEventListener('mouseup',   ()=>{ isDragging=false; });
@@ -425,16 +394,15 @@ canvas.addEventListener('wheel', e=>{
   camera.position.z=Math.max(2,Math.min(20,camera.position.z+e.deltaY*0.005));
 },{passive:false});
 
-// ── RENDER LOOP ───────────────────────────────────────
 function tick(){
   requestAnimationFrame(tick);
   S.t+=0.01;
   if(meshGroup&&!isDragging&&!S.isRecording){
     meshGroup.position.y=Math.sin(S.t)*S.floatAmt*0.1;
     if(S.speed>0){
-      if(S.spinAxis==='y')      S.rotY+=S.speed*0.01;
-      else if(S.spinAxis==='x') S.rotX+=S.speed*0.01;
-      else                      S.rotZ+=S.speed*0.01;
+      if(S.spinAxis==='y')      S.rotY+=S.speed*0.004;
+      else if(S.spinAxis==='x') S.rotX+=S.speed*0.004;
+      else                      S.rotZ+=S.speed*0.004;
     }
   }
   if(meshGroup){
@@ -448,7 +416,6 @@ function tick(){
 }
 tick(); buildBg(); buildMesh();
 
-// ── EXPORTS ───────────────────────────────────────────
 function doRender(){
   renderer.autoClear=false; renderer.clear();
   if(bgMesh) renderer.render(bgScene,bgCam);
@@ -500,14 +467,17 @@ document.getElementById('btn-gif').addEventListener('click',async()=>{
   }
   const delay=Math.round(1000/S.gifFPS);
   const gif=new GIF({workers:2,quality:10,width:canvas.width,height:canvas.height,workerScript:workerBlobUrl,transparent:S.bgMode==='trans'?0x000000:null});
-  const frames=S.gifFrames,startY=S.rotY;
+  const frames=S.gifFrames, startY=S.rotY, startT=S.t;
+  // freeze float during capture so first/last frame match
+  const savedFloatAmt=S.floatAmt; S.floatAmt=0;
+  if(meshGroup) meshGroup.position.y=0;
   for(let i=0;i<frames;i++){
     S.rotY=(i/frames)*Math.PI*2; doRender();
     gif.addFrame(canvas,{copy:true,delay});
     setStatus(`Capturing ${Math.round((i/frames)*100)}%`,true);
     await new Promise(r=>setTimeout(r,8));
   }
-  S.rotY=startY; setStatus('Encoding GIF...',true);
+  S.rotY=startY; S.t=startT; S.floatAmt=savedFloatAmt; setStatus('Encoding GIF...',true);
   gif.on('finished',blob=>{
     URL.revokeObjectURL(workerBlobUrl);
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='logo-3d.gif'; a.click();
@@ -516,7 +486,6 @@ document.getElementById('btn-gif').addEventListener('click',async()=>{
   gif.render();
 });
 
-// 3D exports
 function getExportGroup(){
   if(!meshGroup){ alert('No model loaded — upload a logo first.'); return null; }
   meshGroup.updateMatrixWorld(true);
@@ -582,7 +551,6 @@ document.getElementById('btn-stl').addEventListener('click',()=>{
   setStatus('',false);
 });
 
-// ── UI HELPERS ────────────────────────────────────────
 function bindSl(id,key,cb,dec=2){
   const el=document.getElementById('sl-'+id),disp=document.getElementById('sv-'+id);
   if(!el) return;
@@ -615,9 +583,6 @@ function syncMaterialUI(){
   });
 }
 
-// ── WIRE UP ───────────────────────────────────────────
-
-// Presets
 document.querySelectorAll('[data-p]').forEach(b=>{
   b.addEventListener('click',()=>{
     document.querySelectorAll('[data-p]').forEach(x=>x.classList.remove('active'));
@@ -629,7 +594,6 @@ document.querySelectorAll('[data-p]').forEach(b=>{
   });
 });
 
-// Color mode toggle
 document.querySelectorAll('[data-cmode]').forEach(b=>{
   b.addEventListener('click',()=>{
     document.querySelectorAll('[data-cmode]').forEach(x=>x.classList.remove('active'));
@@ -641,13 +605,12 @@ document.querySelectorAll('[data-cmode]').forEach(b=>{
   });
 });
 
-// Solid color
 bindColor('sl-mat-color','matColor',updateMaterials);
 document.getElementById('btn-mat-color-reset')?.addEventListener('click',()=>{
   const p=PRESETS[S.preset]; if(p){ S.matColor=p.matColor; document.getElementById('sl-mat-color').value=S.matColor; updateMaterials(); }
 });
 
-// Gradient — color picks update live via uniforms; direction needs shader recompile
+// color picks update live, but direction change needs a full shader recompile
 document.getElementById('sl-grad-a').addEventListener('input',e=>{ S.matGradColorA=e.target.value; updateGradientUniforms(); });
 document.getElementById('sl-grad-b').addEventListener('input',e=>{ S.matGradColorB=e.target.value; updateGradientUniforms(); });
 document.querySelectorAll('[data-gdir]').forEach(b=>{
@@ -659,7 +622,6 @@ document.querySelectorAll('[data-gdir]').forEach(b=>{
   });
 });
 
-// Material sliders — instant
 bindSl('rough',    'matRoughness',          updateMaterials);
 bindSl('metal',    'matMetalness',          updateMaterials);
 bindSl('coat',     'matClearcoat',          updateMaterials);
@@ -667,14 +629,13 @@ bindSl('coatrough','matClearcoatRoughness', updateMaterials);
 bindSl('glow',     'matEmissiveInt',        updateMaterials, 1);
 bindColor('sl-glow-color','matEmissive',    updateMaterials);
 
-// Geometry — DEBOUNCED rebuild (eliminates lag while dragging)
+// geometry sliders are debounced because ExtrudeGeometry is expensive
 bindSl('depth',    'depth',    debouncedBuild);
 bindSl('bevel',    'bevel',    debouncedBuild, 3);
 bindSl('bevelsegs','bevelSegs',debouncedBuild, 0);
 bindSl('curvesegs','curveSegs',debouncedBuild, 0);
 bindSl('scale',    'scale',    ()=>meshGroup&&meshGroup.scale.setScalar(S.scale));
 
-// Lighting — instant
 bindSl('key',     'keyIntensity',     updateLights, 1);
 bindColor('sl-key-color','keyColor',  updateLights);
 bindSl('ambient', 'ambientIntensity', updateLights);
@@ -682,7 +643,6 @@ bindSl('rim',     'rimIntensity',     updateLights, 1);
 bindSl('envint',  'envIntensity',     updateMaterials);
 bindSl('exposure','exposure',         updateExposure);
 
-// Background
 document.querySelectorAll('[data-bg]').forEach(b=>{
   b.addEventListener('click',()=>{
     document.querySelectorAll('[data-bg]').forEach(x=>x.classList.remove('active'));
@@ -692,7 +652,6 @@ document.querySelectorAll('[data-bg]').forEach(b=>{
 bindColor('sl-bg-color','bgColor',buildBg);
 bindSl('shadow','shadowOpacity',updateShadow);
 
-// Presentation
 bindSl('tilt', 'tiltX',    null, 0);
 bindSl('float','floatAmt', null, 1);
 bindSl('speed','speed',    null, 1);
@@ -703,11 +662,9 @@ document.querySelectorAll('[data-axis]').forEach(b=>{
   });
 });
 
-// Trace — DEBOUNCED rebuild
 bindSl('thresh',  'traceThreshold', debouncedBuild, 0);
 bindSl('simplify','traceSimplify',  debouncedBuild);
 
-// Export
 document.querySelectorAll('[data-res]').forEach(b=>{
   b.addEventListener('click',()=>{
     document.querySelectorAll('[data-res]').forEach(x=>x.classList.remove('active'));
@@ -717,7 +674,6 @@ document.querySelectorAll('[data-res]').forEach(b=>{
 bindSl('gifframes','gifFrames',null,0);
 bindSl('giffps',   'gifFPS',   null,0);
 
-// ── IMAGE LOADING ─────────────────────────────────────
 const fileIn=document.getElementById('file-in');
 const load=f=>{
   const img=new Image();
@@ -732,10 +688,8 @@ vp.addEventListener('dragover',e=>{ e.preventDefault(); document.getElementById(
 vp.addEventListener('dragleave',()=>document.getElementById('drop-overlay').classList.remove('drag-over'));
 vp.addEventListener('drop',e=>{ e.preventDefault(); document.getElementById('drop-overlay').classList.remove('drag-over'); if(e.dataTransfer.files[0]) load(e.dataTransfer.files[0]); });
 
-// Init gradient preview on load
 updateGradPreview();
 
-// ── STATUS ────────────────────────────────────────────
 function setStatus(msg,vis){ const el=document.getElementById('status-msg'); el.textContent=msg; el.classList.toggle('vis',vis); }
 
 })();
