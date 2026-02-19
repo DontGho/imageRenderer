@@ -1,4 +1,5 @@
-// tracer.js — Robust contour tracer with hole detection & clean hierarchy
+// tracer.js
+
 window.TraceImage = function(imgEl, threshold=128, simplify=1.0) {
   return new Promise(resolve => {
     const MAX_DIM = 1024;
@@ -16,8 +17,6 @@ window.TraceImage = function(imgEl, threshold=128, simplify=1.0) {
     const data  = idata.data;
     const gray  = new Uint8Array(w * h);
 
-    // ── 1. THRESHOLD ────────────────────────────────────────────────────────
-    // Check for meaningful alpha channel (transparent images)
     let hasAlpha = false;
     for(let i = 3; i < data.length; i += 4){
       if(data[i] < 250){ hasAlpha = true; break; }
@@ -48,7 +47,6 @@ window.TraceImage = function(imgEl, threshold=128, simplify=1.0) {
       }
     }
 
-    // ── 2. CONTOUR TRACING (Moore-Neighbor) ─────────────────────────────────
     const visited = new Uint8Array(w * h);
     const contours = [];
 
@@ -88,7 +86,6 @@ window.TraceImage = function(imgEl, threshold=128, simplify=1.0) {
       return path.length > 4 ? simplifyPath(path, simplify) : null;
     }
 
-    // ── 3. SIMPLIFY + SMOOTH ─────────────────────────────────────────────────
     function simplifyPath(pts, epsilon){
       const points = pts.map(p => [p.x, p.y]);
 
@@ -109,7 +106,6 @@ window.TraceImage = function(imgEl, threshold=128, simplify=1.0) {
       }
 
       const simplified = rdp(points, epsilon);
-      // Chaikin corner-cutting: rounds pixel staircase jaggies
       // without distorting the global shape (2 iterations is plenty)
       return simplified.length >= 4 ? chaikin(simplified, 2) : simplified;
     }
@@ -135,7 +131,6 @@ window.TraceImage = function(imgEl, threshold=128, simplify=1.0) {
       return Math.hypot(px-(ax+t*cx), py-(ay+t*cy));
     }
 
-    // ── 4. SCAN & COLLECT CONTOURS ──────────────────────────────────────────
     for(let y = 0; y < h; y++){
       for(let x = 0; x < w; x++){
         if(gray[y*w+x] === 1 && visited[y*w+x] === 0){
@@ -154,7 +149,6 @@ window.TraceImage = function(imgEl, threshold=128, simplify=1.0) {
 
     if(contours.length === 0){ resolve([]); return; }
 
-    // ── 5. GEOMETRY HELPERS ──────────────────────────────────────────────────
 
     // Signed area via shoelace formula
     function polyArea(poly){
@@ -166,7 +160,6 @@ window.TraceImage = function(imgEl, threshold=128, simplify=1.0) {
       return Math.abs(a) * 0.5;
     }
 
-    // Centroid — far more reliable than first-point for containment tests
     // (the first point may sit right on the edge after Chaikin smoothing)
     function centroid(poly){
       let cx=0, cy=0;
@@ -186,7 +179,6 @@ window.TraceImage = function(imgEl, threshold=128, simplify=1.0) {
       return inside;
     }
 
-    // ── 6. COMPUTE BOUNDS & AREAS ────────────────────────────────────────────
     const bounds = contours.map(poly => {
       let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
       for(const p of poly){
@@ -200,7 +192,6 @@ window.TraceImage = function(imgEl, threshold=128, simplify=1.0) {
     const centroids = contours.map(centroid);
     const totalArea = w * h;
 
-    // ── 7. FILTER GARBAGE CONTOURS ───────────────────────────────────────────
     // Remove near-full-image contours (solid-background border artefact)
     // Remove sub-pixel noise (< 0.05% of canvas area)
     const MIN_AREA = totalArea * 0.0005;
@@ -218,7 +209,6 @@ window.TraceImage = function(imgEl, threshold=128, simplify=1.0) {
     const vCentroids = validIdx.map(i => centroids[i]);
     const n          = vContours.length;
 
-    // ── 8. PARENT DETECTION ──────────────────────────────────────────────────
     // For each contour, find its IMMEDIATE parent = the smallest contour
     // that fully contains it.  Using centroid + area makes this robust even
     // after the Chaikin smoothing has shifted point positions.
@@ -244,7 +234,6 @@ window.TraceImage = function(imgEl, threshold=128, simplify=1.0) {
       parent[i] = bestParent;
     }
 
-    // ── 9. DEPTH → SOLID / HOLE ──────────────────────────────────────────────
     function getDepth(i){
       let d=0, cur=i;
       while(parent[cur] !== -1){ d++; cur = parent[cur]; }
@@ -254,7 +243,6 @@ window.TraceImage = function(imgEl, threshold=128, simplify=1.0) {
     const isHole = new Uint8Array(n);
     for(let i = 0; i < n; i++) isHole[i] = getDepth(i) % 2 !== 0 ? 1 : 0;
 
-    // ── 10. BUILD THREE.Shape OBJECTS ────────────────────────────────────────
     const finalShapes = [];
     const shapeMap    = {};
 
