@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D Logo Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <header id="topbar">
+    <div class="brand">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="white"><path d="M10 2L2 7l8 5 8-5-8-5zM2 13l8 5 8-5M2 10l8 5 8-5" fill-opacity="0.8"/></svg>
+      <span>Form Studio</span>
+    </div>
+    <div id="upload-btn-wrap">
+      <button id="upload-btn">Upload Logo</button>
+      <input type="file" id="file-in" accept="image/*">
+    </div>
+    <div class="header-right">
+      <button class="icon-btn" id="btn-png">Snapshot</button>
+    </div>
+  </header>
+
+  <div id="main">
+    <div id="viewport">
+      <canvas id="c"></canvas>
+      <div id="drop-overlay">
+        <div id="drop-inner">
+          <p class="drop-title">Drop logo here</p>
+          <button id="browse-btn">Browse</button>
+        </div>
+      </div>
+      <div id="status-msg"></div>
+    </div>
+
+    <aside id="controls">
+
+      <!-- MATERIAL -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">Material</div>
+        <div class="preset-row">
+          <button class="preset" data-p="plastic">Plastic</button>
+          <button class="preset" data-p="clay">Clay</button>
+          <button class="preset" data-p="glass">Glass</button>
+          <button class="preset active" data-p="chrome">Chrome</button>
+          <button class="preset" data-p="gold">Gold</button>
+          <button class="preset" data-p="neon">Neon</button>
+          <button class="preset" data-p="metallica" style="grid-column:span 3">Metallica</button>
+        </div>
+
+        <!-- Color mode -->
+        <div class="sl" style="margin-top:12px">
+          <span>Color</span>
+          <div class="btn-row" style="flex:1" id="color-mode-btns">
+            <button class="rb" data-cmode="solid">Solid</button>
+            <button class="rb active" data-cmode="gradient">Gradient</button>
+          </div>
+        </div>
+
+        <!-- Solid color (hidden — gradient is default) -->
+        <div id="solid-color-row" class="sl" style="margin-top:8px;display:none">
+          <span></span>
+          <input type="color" id="sl-mat-color" value="#eeeeee">
+          <button class="mini-btn" id="btn-mat-color-reset" title="Reset to preset">↺</button>
+        </div>
+
+        <!-- Gradient pickers (visible by default) -->
+        <div id="gradient-rows">
+          <div class="grad-pickers">
+            <div class="grad-stop">
+              <div class="grad-stop-label">A</div>
+              <input type="color" id="sl-grad-a" value="#004bff">
+            </div>
+            <div id="grad-preview"></div>
+            <div class="grad-stop">
+              <div class="grad-stop-label">B</div>
+              <input type="color" id="sl-grad-b" value="#ff0000">
+            </div>
+          </div>
+          <div class="sl" style="margin-top:8px">
+            <span>Direction</span>
+            <div class="btn-row" style="flex:1" id="grad-dir-btns">
+              <button class="rb active" data-gdir="vertical" title="Top to bottom">↕</button>
+              <button class="rb" data-gdir="horizontal" title="Left to right">↔</button>
+              <button class="rb" data-gdir="diagonal" title="Diagonal">↗</button>
+              <button class="rb" data-gdir="radial" title="Radial">◎</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="slider-group" style="margin-top:10px">
+          <div class="sl"><span>Roughness</span><input type="range" id="sl-rough" min="0" max="1" step="0.01" value="1"><span class="sv" id="sv-rough">1.00</span></div>
+          <div class="sl"><span>Metalness</span><input type="range" id="sl-metal" min="0" max="1" step="0.01" value="1"><span class="sv" id="sv-metal">1.00</span></div>
+          <div class="divider-mini"></div>
+          <div class="sl"><span>Clearcoat</span><input type="range" id="sl-coat" min="0" max="1" step="0.01" value="1"><span class="sv" id="sv-coat">1.00</span></div>
+          <div class="sl"><span>Gloss</span><input type="range" id="sl-coatrough" min="0" max="1" step="0.01" value="1"><span class="sv" id="sv-coatrough">1.00</span></div>
+          <div class="divider-mini"></div>
+          <div class="sl"><span>Glow</span><input type="range" id="sl-glow" min="0" max="5" step="0.1" value="0"><span class="sv" id="sv-glow">0.0</span></div>
+          <div class="sl">
+            <span>Glow Color</span>
+            <input type="color" id="sl-glow-color" value="#000000">
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- GEOMETRY -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">Geometry</div>
+        <div class="slider-group">
+          <div class="sl"><span>Depth</span><input type="range" id="sl-depth" min="0.01" max="0.5" step="0.01" value="0.22"><span class="sv" id="sv-depth">0.22</span></div>
+          <div class="sl"><span>Roundness</span><input type="range" id="sl-bevel" min="0" max="0.1" step="0.001" value="0.005"><span class="sv" id="sv-bevel">0.005</span></div>
+          <div class="sl"><span>Bevel Steps</span><input type="range" id="sl-bevelsegs" min="1" max="16" step="1" value="16"><span class="sv" id="sv-bevelsegs">16</span></div>
+          <div class="sl"><span>Curve Segs</span><input type="range" id="sl-curvesegs" min="8" max="96" step="4" value="48"><span class="sv" id="sv-curvesegs">48</span></div>
+          <div class="sl"><span>Scale</span><input type="range" id="sl-scale" min="0.3" max="2.0" step="0.05" value="0.90"><span class="sv" id="sv-scale">0.90</span></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- LIGHTING -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">Lighting</div>
+        <div class="slider-group">
+          <div class="sl"><span>Key Light</span><input type="range" id="sl-key" min="0" max="10" step="0.1" value="10"><span class="sv" id="sv-key">10.0</span></div>
+          <div class="sl">
+            <span>Key Color</span>
+            <input type="color" id="sl-key-color" value="#ec0088">
+          </div>
+          <div class="sl"><span>Ambient</span><input type="range" id="sl-ambient" min="0" max="2" step="0.05" value="0"><span class="sv" id="sv-ambient">0.00</span></div>
+          <div class="sl"><span>Rim Light</span><input type="range" id="sl-rim" min="0" max="3" step="0.1" value="0"><span class="sv" id="sv-rim">0.0</span></div>
+          <div class="divider-mini"></div>
+          <div class="sl"><span>Env Map</span><input type="range" id="sl-envint" min="0" max="3" step="0.05" value="0.30"><span class="sv" id="sv-envint">0.30</span></div>
+          <div class="sl"><span>Exposure</span><input type="range" id="sl-exposure" min="0.3" max="3" step="0.05" value="0.80"><span class="sv" id="sv-exposure">0.80</span></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- BACKGROUND -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">Background</div>
+        <div class="btn-row" id="bg-btns">
+          <button class="rb active" data-bg="studio">Studio</button>
+          <button class="rb" data-bg="solid">Solid</button>
+          <button class="rb" data-bg="trans">Alpha</button>
+        </div>
+        <div class="slider-group" style="margin-top:10px">
+          <div class="sl" id="bg-color-row" style="display:none">
+            <span>BG Color</span>
+            <input type="color" id="sl-bg-color" value="#0d0d0d">
+          </div>
+          <div class="sl"><span>Shadow</span><input type="range" id="sl-shadow" min="0" max="0.5" step="0.01" value="0.15"><span class="sv" id="sv-shadow">0.15</span></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- PRESENTATION -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">Presentation</div>
+        <div class="slider-group">
+          <div class="sl"><span>Tilt X</span><input type="range" id="sl-tilt" min="-45" max="45" value="10"><span class="sv" id="sv-tilt">10</span></div>
+          <div class="sl"><span>Float</span><input type="range" id="sl-float" min="0" max="2" step="0.1" value="0.2"><span class="sv" id="sv-float">0.2</span></div>
+          <div class="sl"><span>Spin</span><input type="range" id="sl-speed" min="0" max="5" step="0.1" value="0"><span class="sv" id="sv-speed">0.0</span></div>
+        </div>
+        <div class="sl" style="margin-top:10px">
+          <span>Axis</span>
+          <div class="btn-row" style="flex:1" id="axis-btns">
+            <button class="rb active" data-axis="y">Y</button>
+            <button class="rb" data-axis="x">X</button>
+            <button class="rb" data-axis="z">Z</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- TRACE -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">Trace Settings</div>
+        <div class="slider-group">
+          <div class="sl"><span>Threshold</span><input type="range" id="sl-thresh" min="10" max="250" value="10"><span class="sv" id="sv-thresh">10</span></div>
+          <div class="sl"><span>Smooth</span><input type="range" id="sl-simplify" min="0.1" max="5" step="0.1" value="0.10"><span class="sv" id="sv-simplify">0.10</span></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- EXPORT -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">Export</div>
+        <div class="sl" style="margin-bottom:10px">
+          <span>Resolution</span>
+          <div class="btn-row" style="flex:1" id="res-btns">
+            <button class="rb active" data-res="1">1×</button>
+            <button class="rb" data-res="2">2×</button>
+            <button class="rb" data-res="4">4×</button>
+          </div>
+        </div>
+        <div class="slider-group">
+          <div class="sl"><span>GIF Frames</span><input type="range" id="sl-gifframes" min="20" max="120" step="5" value="60"><span class="sv" id="sv-gifframes">60</span></div>
+          <div class="sl"><span>GIF FPS</span><input type="range" id="sl-giffps" min="10" max="30" step="1" value="30"><span class="sv" id="sv-giffps">30</span></div>
+        </div>
+      </div>
+
+      <div class="ctrl-section export-section">
+        <div class="ctrl-label" style="margin-bottom:8px">2D / Video</div>
+        <button class="export-btn" id="btn-webm">Export Video</button>
+        <button class="export-btn" id="btn-gif">Export GIF</button>
+        <div class="divider" style="margin:10px 0"></div>
+        <div class="ctrl-label" style="margin-bottom:8px">3D Model</div>
+        <div class="export-3d-grid">
+          <button class="export-btn export-3d" id="btn-glb">
+            <span class="fmt-badge">GLB</span>
+            <span class="fmt-desc">Game Engines<br>Blender · Unity</span>
+          </button>
+          <button class="export-btn export-3d" id="btn-obj">
+            <span class="fmt-badge">OBJ</span>
+            <span class="fmt-desc">Universal<br>All 3D apps</span>
+          </button>
+          <button class="export-btn export-3d" id="btn-stl">
+            <span class="fmt-badge">STL</span>
+            <span class="fmt-desc">3D Printing<br>Cura · Prusa</span>
+          </button>
+        </div>
+      </div>
+
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/OBJExporter.js"></script>
+<script src="tracer.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
